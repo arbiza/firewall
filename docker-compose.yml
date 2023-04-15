@@ -1,0 +1,16 @@
+# version: "3.9"
+services:
+  iptables:
+    image: "local/firewall"
+    cap_add:
+      - NET_ADMIN
+    networks:
+      firewall_coll_net:
+        ipv4_address: 10.6.6.6
+
+networks:
+  firewall_coll_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: "10.6.6.0/24"

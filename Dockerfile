@@ -7,10 +7,10 @@
 # BUILDING:
 #   docker build --build-arg SSH_USER="$(whoami)" \
 #                --build-arg SSH_KEY="$(cat ~/.ssh/<your pub key>)" \
-#                -t <image name> .
+#                -t local/firewall .
 #
 # RUNNING:
-#   docker run -d --rm --cap-add NET_ADMIN <image name>
+#   docker run -d --rm --cap-add NET_ADMIN local/firewall
 
 FROM debian:bullseye-slim
 
