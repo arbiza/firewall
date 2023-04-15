@@ -17,7 +17,7 @@ FROM debian:bullseye-slim
 ARG SSH_USER
 ARG SSH_KEY
 
-RUN apt-get update && apt-get install -y iptables openssh-server sudo
+RUN apt-get update && apt-get install -y iptables openssh-server sudo python3
 
 # User creation and password
 RUN useradd -rm -d /home/${SSH_USER} -s /bin/bash -g root -G sudo -u 1000 ${SSH_USER}
@@ -31,6 +31,9 @@ RUN chmod 700 /home/${SSH_USER}/.ssh && chmod 600 /home/${SSH_USER}/.ssh/*
 
 # SSH server configuration
 RUN sed -i 's/#PubkeyAuthentication/PubkeyAuthentication/' /etc/ssh/sshd_config
+
+# sudo without password
+RUN echo "${SSH_USER} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/${SSH_USER}
 
 RUN service ssh start
 EXPOSE 22
