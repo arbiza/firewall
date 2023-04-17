@@ -4,6 +4,86 @@
     name: iptables
     state: present
 
+## Keep the existing connections
+
+- name: Keep the established connections up
+  ansible.builtin.iptables:
+    chain: "{{ item }}"
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+  loop:
+    - INPUT
+    - OUTPUT
+
+## Set the policies to DROP
+
+- name: Set policy to DROP
+  ansible.builtin.iptables:
+    chain: "{{ item }}"
+    policy: DROP
+  loop:
+    - INPUT
+    - OUTPUT
+    - FORWARD
+
+## Communication that server is allowed to start
+
+# Accept everything from loopback
+- name: Allow loopback traffic - INPUT
+  ansible.builtin.iptables:
+    chain: INPUT
+    in_interface: "{{ loopback }}"
+    jump: ACCEPT
+    ip_version: "{{ item }}"
+    comment: loopback IN traffic
+  loop: "{{ ip }}"
+
+- name: Allow loopback traffic - INPUT
+  ansible.builtin.iptables:
+    chain: OUTPUT
+    out_interface: "{{ loopback }}"
+    jump: ACCEPT
+    ip_version: "{{ item }}"
+    comment: loopback OUT traffic
+  loop: "{{ ip }}"
+
+# Allow HTTP and HTTPS output to enable system updates
+- name: Allow loopback traffic - INPUT
+  ansible.builtin.iptables:
+    chain: OUTPUT
+    protocol: tcp
+    match: tcp
+    destination_port: "{{ item.1}}"
+    jump: ACCEPT
+    ip_version: "{{ item.0 }}"
+    comment: allow system updates
+  loop: "{{ ip | product(['http', 'https']) | list }}"
+
 - name: Create input rules
   ansible.builtin.include_tasks: input.yml
   loop: "{{ input }}"
+
+# - name: List IPv4 rules
+#   ansible.builtin.include_tasks: list_ipv4.yml
+#   tags: [never, list, list_v4]
+
+# - name: List IPv6 rules
+#   ansible.builtin.include_tasks: list_ipv4.yml
+#   tags: [never, list, list_v4]
+
+- name: Reload firewall
+  ansible.builtin.include_tasks: reload.yml
+  tags: [never, reload]
+
+#################
+## REMOVE
+
+- name: Allow new incoming SYN packets on TCP port 22 (SSH)
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 22
+    ctstate: NEW
+    syn: match
+    jump: ACCEPT
+    comment: TEMP SSH.

@@ -1,2 +1,8 @@
 ---
-# defaults file for iptables
+loopback: "lo"
+in_out_chains:
+  - INPUT
+  - OUTPUT
+ip:
+  - ipv4
+  - ipv6
