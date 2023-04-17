@@ -1,0 +1,24 @@
+---
+
+- name: Playbook of arbiza.firewall
+  hosts: "{{ target }}"
+  become: true
+
+  tasks:
+    - ansible.builtin.import_role:
+        name: iptables
+      vars:
+        input:
+          - source: any
+            port: https
+          - source: any
+            port: https
+        output:
+          - destination: any
+            port: https
+        port_knocking:
+          target: ssh
+          knock:
+            - 26896 
+            - 4099 
+            - 63793

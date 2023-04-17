@@ -1,0 +1,4 @@
+---
+- name: test
+  ansible.builtin.debug:
+    msg: "{{ item }}"

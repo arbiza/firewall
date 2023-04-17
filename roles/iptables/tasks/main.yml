@@ -1,2 +1,9 @@
 ---
-# tasks file for iptables
+- name: Install iptables
+  ansible.builtin.apt:
+    name: iptables
+    state: present
+
+- name: Create input rules
+  ansible.builtin.include_tasks: input.yml
+  loop: "{{ input }}"
