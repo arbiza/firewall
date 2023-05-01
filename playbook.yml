@@ -6,7 +6,7 @@
 
   tasks:
     - ansible.builtin.import_role:
-        name: iptables
+        name: arbiza.firewall.iptables
       vars:
         input:
           - source: any
@@ -22,3 +22,16 @@
             - 26896 
             - 4099 
             - 63793
+
+
+    - name: Blue test
+      tags: [blue, test]
+      block:
+
+        - name: Set var vlans
+          ansible.builtin.set_fact:
+            my_color_choice: 'blue'
+
+        - name: Test blue
+          ansible.builtin.assert:
+            that: my_color_choice is arbiza.firewall.blue

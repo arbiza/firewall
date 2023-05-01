@@ -1,67 +1,121 @@
 ---
-- name: Install iptables
-  ansible.builtin.apt:
-    name: iptables
-    state: present
+- name: Stop - firewall down
+  tags: [never, stop, reload]
+  block:
+    - name: Set policy to ACCEPT
+      ansible.builtin.iptables:
+        chain: "{{ item.1 }}"
+        policy: ACCEPT
+        ip_version: "{{ item.0 }}"
+      loop: "{{ ip | product(['INPUT', 'OUTPUT', 'FORWARD']) | list }}"
 
-## Keep the existing connections
+    - name: FLUSH all rules
+      ansible.builtin.iptables:
+        chain: "{{ item.1 }}"
+        flush: true
+        ip_version: "{{ item.0 }}"
+      loop: "{{ ip | product(['INPUT', 'OUTPUT', 'FORWARD']) | list }}"
 
-- name: Keep the established connections up
-  ansible.builtin.iptables:
-    chain: "{{ item }}"
-    ctstate: ESTABLISHED,RELATED
-    jump: ACCEPT
-  loop:
-    - INPUT
-    - OUTPUT
+    - name: Get all ipv4 rules for then filter the user-defined the chains
+      ansible.builtin.command: iptables -S
+      changed_when: false
+      register: output_ipv4
 
-## Set the policies to DROP
+    - name: Delete non-standard ipv4 chains
+      ansible.builtin.iptables:
+        chain: "{{ item }}"
+        state: absent
+        chain_management: true
+        ip_version: ipv4
+      loop: "{{ output_ipv4.stdout_lines | arbiza.firewall.extra_chains }}"
 
-- name: Set policy to DROP
-  ansible.builtin.iptables:
-    chain: "{{ item }}"
-    policy: DROP
-  loop:
-    - INPUT
-    - OUTPUT
-    - FORWARD
+    - name: Get all ipv6 rules for then filter the user-defined the chains
+      ansible.builtin.command: ip6tables -S
+      changed_when: false
+      register: output_ipv6
 
-## Communication that server is allowed to start
+    - name: Delete non-standard ipv6 chains
+      ansible.builtin.iptables:
+        chain: "{{ item }}"
+        state: absent
+        chain_management: true
+        ip_version: ipv6
+      loop: "{{ output_ipv6.stdout_lines | arbiza.firewall.extra_chains }}"
 
-# Accept everything from loopback
-- name: Allow loopback traffic - INPUT
-  ansible.builtin.iptables:
-    chain: INPUT
-    in_interface: "{{ loopback }}"
-    jump: ACCEPT
-    ip_version: "{{ item }}"
-    comment: loopback IN traffic
-  loop: "{{ ip }}"
+- name: Start - firewall up
+  tags: [start, reload]
+  block:
+    - name: Install iptables
+      ansible.builtin.apt:
+        name: iptables
+        state: present
 
-- name: Allow loopback traffic - INPUT
-  ansible.builtin.iptables:
-    chain: OUTPUT
-    out_interface: "{{ loopback }}"
-    jump: ACCEPT
-    ip_version: "{{ item }}"
-    comment: loopback OUT traffic
-  loop: "{{ ip }}"
+    ## Keep the existing connections
 
-# Allow HTTP and HTTPS output to enable system updates
-- name: Allow loopback traffic - INPUT
-  ansible.builtin.iptables:
-    chain: OUTPUT
-    protocol: tcp
-    match: tcp
-    destination_port: "{{ item.1}}"
-    jump: ACCEPT
-    ip_version: "{{ item.0 }}"
-    comment: allow system updates
-  loop: "{{ ip | product(['http', 'https']) | list }}"
+    - name: Keep the established connections up
+      ansible.builtin.iptables:
+        chain: "{{ item.1 }}"
+        ctstate: ESTABLISHED,RELATED
+        jump: ACCEPT
+        ip_version: "{{ item.0 }}"
+      loop: "{{ ip | product(['INPUT', 'OUTPUT']) | list }}"
 
-- name: Create input rules
-  ansible.builtin.include_tasks: input.yml
-  loop: "{{ input }}"
+    ## Set the policies to DROP
+
+    - name: Set policy to DROP
+      ansible.builtin.iptables:
+        chain: "{{ item.1 }}"
+        policy: DROP
+        ip_version: "{{ item.0 }}"
+      loop: "{{ ip | product(['INPUT', 'OUTPUT', 'FORWARD']) | list }}"
+
+    ## Communication that server is allowed to start
+
+    # Accept everything from loopback
+    - name: Allow loopback traffic - INPUT
+      ansible.builtin.iptables:
+        chain: INPUT
+        in_interface: "{{ loopback }}"
+        jump: ACCEPT
+        ip_version: "{{ item }}"
+        comment: loopback IN traffic
+      loop: "{{ ip }}"
+
+    - name: Allow loopback traffic - INPUT
+      ansible.builtin.iptables:
+        chain: OUTPUT
+        out_interface: "{{ loopback }}"
+        jump: ACCEPT
+        ip_version: "{{ item }}"
+        comment: loopback OUT traffic
+      loop: "{{ ip }}"
+
+    # Allow HTTP and HTTPS output to enable system updates
+    - name: Allow loopback traffic - INPUT
+      ansible.builtin.iptables:
+        chain: OUTPUT
+        protocol: tcp
+        match: tcp
+        destination_port: "{{ item.1}}"
+        jump: ACCEPT
+        ip_version: "{{ item.0 }}"
+        comment: allow system updates
+      loop: "{{ ip | product(['http', 'https']) | list }}"
+
+    # Allow DNS queries
+    - name: Allow DNS queries
+      ansible.builtin.iptables:
+        chain: OUTPUT
+        protocol: "{{ item.1  }}"
+        destination_port: 53
+        jump: ACCEPT
+        ip_version: "{{ item.0 }}"
+        comment: DNS query
+      loop: "{{ ip | product(['tcp', 'udp']) | list }}"
+
+    - name: Create input rules
+      ansible.builtin.include_tasks: input.yml
+      loop: "{{ input }}"
 
 # - name: List IPv4 rules
 #   ansible.builtin.include_tasks: list_ipv4.yml
@@ -70,10 +124,6 @@
 # - name: List IPv6 rules
 #   ansible.builtin.include_tasks: list_ipv4.yml
 #   tags: [never, list, list_v4]
-
-- name: Reload firewall
-  ansible.builtin.include_tasks: reload.yml
-  tags: [never, reload]
 
 #################
 ## REMOVE
@@ -87,3 +137,30 @@
     syn: match
     jump: ACCEPT
     comment: TEMP SSH.
+# - name: Filter test
+#   tags: [test]
+#   block:
+
+#     - name: Set var vlans
+#       ansible.builtin.set_fact:
+#         vlans: [{"vlanDescription": "vlan-1", "vlanNumber": "1"}, {"vlanDescription": "vlan-10", "vlanNumber": "10"}]
+
+#     - name: DEBUG vlan python type
+#       ansible.builtin.debug:
+#         var: vlans
+
+#     - name: DEBUG >> vlan python type
+#       ansible.builtin.debug:
+#         var: "{{ vlans | arbiza.firewall.nesteddict2items }}"
+
+# - name: Blue test
+#   tags: [blue, test]
+#   block:
+
+#     - name: Set var vlans
+#       ansible.builtin.set_fact:
+#         my_color_choice: 'rgb(0.0.255)'
+
+#     - name: Test blue
+#       ansible.builtin.assert:
+#         that: my_color_choice is blue

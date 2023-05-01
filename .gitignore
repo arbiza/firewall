@@ -1,2 +1,5 @@
 # Collection build
 *.tar.gz
+ansible.cfg
+.pyc
+__pycache__
