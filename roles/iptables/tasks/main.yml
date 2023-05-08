@@ -62,13 +62,6 @@
 
     ## Set the policies to DROP
 
-    - name: Set policy to DROP
-      ansible.builtin.iptables:
-        chain: "{{ item.1 }}"
-        policy: DROP
-        ip_version: "{{ item.0 }}"
-      loop: "{{ ip | product(['INPUT', 'OUTPUT', 'FORWARD']) | list }}"
-
     ## Communication that server is allowed to start
 
     # Accept everything from loopback
@@ -91,7 +84,7 @@
       loop: "{{ ip }}"
 
     # Allow HTTP and HTTPS output to enable system updates
-    - name: Allow loopback traffic - INPUT
+    - name: Allow loopback traffic - OUTPUT
       ansible.builtin.iptables:
         chain: OUTPUT
         protocol: tcp
@@ -108,14 +101,26 @@
         chain: OUTPUT
         protocol: "{{ item.1  }}"
         destination_port: 53
+        source_port: 1024:65535
         jump: ACCEPT
         ip_version: "{{ item.0 }}"
-        comment: DNS query
+        comment: allow DNS queries
       loop: "{{ ip | product(['tcp', 'udp']) | list }}"
 
-    - name: Create input rules
+    - name: Create INPUT rules
       ansible.builtin.include_tasks: input.yml
       loop: "{{ input }}"
+
+    - name: Create OUTPUT rules
+      ansible.builtin.include_tasks: output.yml
+      loop: "{{ output }}"
+
+    - name: Set policy to DROP
+      ansible.builtin.iptables:
+        chain: "{{ item.1 }}"
+        policy: DROP
+        ip_version: "{{ item.0 }}"
+      loop: "{{ ip | product(['INPUT', 'OUTPUT', 'FORWARD']) | list }}"
 
 # - name: List IPv4 rules
 #   ansible.builtin.include_tasks: list_ipv4.yml

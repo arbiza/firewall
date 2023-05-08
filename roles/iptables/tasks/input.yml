@@ -1,4 +1,32 @@
 ---
-- name: test
-  ansible.builtin.debug:
-    msg: "{{ item }}"
+- name: Allow INPUT traffic to port(s) {{ item.ports }}
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: "{{ item.protocol }}"
+    destination_port: "{{ item.ports }}"
+    jump: ACCEPT
+    ip_version: "{{ ipvx }}"
+  loop: "{{ ip }}"
+  loop_control:
+    loop_var: ipvx
+  when: item.src is not defined
+
+- name: Allow INPUT traffic to port(s) {{ item.ports }} from {{ item.src }}
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: "{{ item.protocol }}"
+    destination_port: "{{ item.ports }}"
+    source: "{{ item.src }}"
+    jump: ACCEPT
+    ip_version: ipv4
+  when: item.src is arbiza.firewall.ipv4_address or item.src is arbiza.firewall.ipv4_network
+
+- name: Allow INPUT traffic to port(s) {{ item.ports }} from {{ item.src }}
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: "{{ item.protocol }}"
+    destination_port: "{{ item.ports }}"
+    source: "{{ item.src }}"
+    jump: ACCEPT
+    ip_version: ipv6
+  when: item.src is arbiza.firewall.ipv6_address or item.src is arbiza.firewall.ipv6_network
