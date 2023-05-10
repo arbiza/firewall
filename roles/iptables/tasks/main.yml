@@ -122,26 +122,149 @@
         ip_version: "{{ item.0 }}"
       loop: "{{ ip | product(['INPUT', 'OUTPUT', 'FORWARD']) | list }}"
 
-# - name: List IPv4 rules
-#   ansible.builtin.include_tasks: list_ipv4.yml
-#   tags: [never, list, list_v4]
+    # IPv6
 
-# - name: List IPv6 rules
-#   ansible.builtin.include_tasks: list_ipv4.yml
-#   tags: [never, list, list_v4]
+    - name: Disable Routing Header 0 (RH0)
+      ansible.builtin.command: ip6tables -A INPUT -m rt --rt-type 0 -j DROP -m comment --comment "discart RH0"
+      changed_when: false
+      register: ip6tables_output
 
+    - name: Discard documentation addresses
+      ansible.builtin.iptables:
+        chain: INPUT
+        source: 2001:0db8::/32
+        jump: DROP
+        comment: discard documentation addresses
+        ip_version: ipv6
+
+    - name: Allow traceroute
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: udp
+        match: udp
+        destination_port: 33434:33523
+        ctstate: NEW
+        jump: REJECT
+        reject_with: icmp6-port-unreachable
+        comment: allow traceroute
+        ip_version: ipv6
+
+    # ICMPv6
+    #
+    # Types addressed (RFC 4890):
+    #   1	Destination Unreachable
+    #   2	Packet Too Big
+    #   3	Time Exceeded
+    #   4	Parameter Problem
+    #   128	Echo Request
+    #   129	Echo Reply
+    #   130	Multicast Listener Query
+    #   131	Multicast Listener Report
+    #   132	Multicast Listener Done
+    #   133	Router Solicitation
+    #   134	Router Advertisement
+    #   135	Neighbor Solicitation
+    #   136	Neighbor Advertisement
+    #   137	Redirect Message
+    #   141	Inverse Neighbor Discovery
+    #   142	Inverse Neighbor Discovery
+    #   143	Listener Report v2
+    #   148	Certificate Path Solicitation
+    #   149	Certificate Path Advertisement
+    #   151	Multicast Router Advertisement
+    #   152	Multicast Router Solicitation
+    #   153	Multicast Router Termination
+
+    - name: ICMPv6 rules
+      ansible.builtin.shell: |
+        # Types 1, 2, 3, 4
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type destination-unreachable -j ACCEPT
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type packet-too-big -j ACCEPT
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type time-exceeded -j ACCEPT
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type parameter-problem -j ACCEPT
+
+        # Echo request and echo reply
+        # types 128, 129
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type echo-request -m limit --limit 5/sec --limit-burst 10 -j ACCEPT
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type echo-reply -m limit --limit 5/sec --limit-burst 10 -j ACCEPT
+
+        # Multicast -- only link local
+        # types 130, 131, 132
+        ip6tables -A {{ chain }} -s fe80::/10 -p icmpv6 --icmpv6-type 130 -j ACCEPT
+        ip6tables -A {{ chain }} -s fe80::/10 -p icmpv6 --icmpv6-type 131 -j ACCEPT
+        ip6tables -A {{ chain }} -s fe80::/10 -p icmpv6 --icmpv6-type 132 -j ACCEPT
+
+        # Multicast -- link local only
+        # types 133, 134
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type 133 -j ACCEPT
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type 134 -j ACCEPT
+
+        # Neighgor Discovery Protocol --- only if the hop limit field is 255
+        # types 135, 136
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type neighbor-solicitation -m hl --hl-eq 255 -j ACCEPT
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type neighbor-advertisement -m hl --hl-eq 255 -j ACCEPT
+
+        # Inverse neighbor discovery
+        # types 141, 142
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type 141 -j ACCEPT
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type 142 -j ACCEPT
+
+        # Listener report -- type 143
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type 143 -j ACCEPT
+
+        # Certificate path
+        # types 148, 149
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type 148 -j ACCEPT
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type 149 -j ACCEPT
+
+        # Multicast router
+        # types 151, 152, 153
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type 151 -j ACCEPT
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type 152 -j ACCEPT
+        ip6tables -A {{ chain }} -p icmpv6 --icmpv6-type 153 -j ACCEPT
+      loop: ["INPUT", "OUTPUT"]
+      loop_control:
+        loop_var: chain
+      register: icmpv6_output
+
+    - name: Ensure ICMPv6 rules were accepted
+      ansible.builtin.assert:
+        that: item.stderr == ''
+      loop: "{{ icmpv6_output['results'] }}"
+      loop_control:
+        label: "{{ item.chain }}"
+
+    - name: Redirects are allowed only when comming - type 137
+      ansible.builtin.shell: |
+        ip6tables -A INPUT -p icmpv6 --icmpv6-type redirect -m hl --hl-eq 255 -j ACCEPT
+        ip6tables -A OUTPUT -p icmpv6 --icmpv6-type redirect -j DROP
+      register: icmpv6_output
+
+    - name: Ensure rules for ICMPv6 type 137 were accepted
+      ansible.builtin.assert:
+        that: icmpv6_output.stderr == ''
+
+    - name: Log dropped ICMPv6 packets -- dropped by the default policy
+      ansible.builtin.iptables:
+        chain: INPUT
+        jump: LOG
+        log_prefix: dropped ICMPv6
+        protocol: icmpv6
+
+    - name: Allow ICMP type 8
+      ansible.builtin.iptables:
+        chain: "{{ item }}"
+        jump: ACCEPT
+        protocol: icmp
+        icmp_type: 8
+        ctstate: NEW,ESTABLISHED,RELATED
+        limit: 5/second
+        limit_burst: 10
+        ip_version: ipv4
+      loop: ["INPUT", "OUTPUT"]
 #################
 ## REMOVE
 
-- name: Allow new incoming SYN packets on TCP port 22 (SSH)
-  ansible.builtin.iptables:
-    chain: INPUT
-    protocol: tcp
-    destination_port: 22
-    ctstate: NEW
-    syn: match
-    jump: ACCEPT
-    comment: TEMP SSH.
 # - name: Filter test
 #   tags: [test]
 #   block:
@@ -169,3 +292,10 @@
 #     - name: Test blue
 #       ansible.builtin.assert:
 #         that: my_color_choice is blue
+
+### CHECK
+
+# - name: save iptables
+#   community.general.iptables_state:
+#     state: saved
+#     path: /etc/sysconfig/iptables

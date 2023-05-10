@@ -1,0 +1,32 @@
+---
+- name: Allow OUTPUT traffic from port(s) {{ item.ports }}
+  ansible.builtin.iptables:
+    chain: OUTPUT
+    protocol: "{{ item.protocol }}"
+    source_port: "{{ item.ports }}"
+    jump: ACCEPT
+    ip_version: "{{ ipvx }}"
+  loop: "{{ ip }}"
+  loop_control:
+    loop_var: ipvx
+  when: item.dest is not defined
+
+- name: Allow OUTPUT traffic from port(s) {{ item.ports }} to {{ item.dest }}
+  ansible.builtin.iptables:
+    chain: OUTPUT
+    protocol: "{{ item.protocol }}"
+    source_port: "{{ item.ports }}"
+    destination: "{{ item.dest }}"
+    jump: ACCEPT
+    ip_version: ipv4
+  when: item.dest is arbiza.firewall.ipv4_address or item.dest is arbiza.firewall.ipv4_network
+
+- name: Allow OUTPUT traffic from port(s) {{ item.ports }} to {{ item.dest }}
+  ansible.builtin.iptables:
+    chain: OUTPUT
+    protocol: "{{ item.protocol }}"
+    source_port: "{{ item.ports }}"
+    destination: "{{ item.dest }}"
+    jump: ACCEPT
+    ip_version: ipv6
+  when: item.dest is arbiza.firewall.ipv6_address or item.dest is arbiza.firewall.ipv6_network

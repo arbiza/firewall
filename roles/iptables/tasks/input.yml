@@ -4,6 +4,8 @@
     chain: INPUT
     protocol: "{{ item.protocol }}"
     destination_port: "{{ item.ports }}"
+    ctstate: NEW
+    syn: match
     jump: ACCEPT
     ip_version: "{{ ipvx }}"
   loop: "{{ ip }}"
@@ -16,6 +18,8 @@
     chain: INPUT
     protocol: "{{ item.protocol }}"
     destination_port: "{{ item.ports }}"
+    ctstate: NEW
+    syn: match
     source: "{{ item.src }}"
     jump: ACCEPT
     ip_version: ipv4
@@ -26,6 +30,8 @@
     chain: INPUT
     protocol: "{{ item.protocol }}"
     destination_port: "{{ item.ports }}"
+    ctstate: NEW
+    syn: match
     source: "{{ item.src }}"
     jump: ACCEPT
     ip_version: ipv6
