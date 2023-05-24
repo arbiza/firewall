@@ -1,12 +1,21 @@
 # version: "3.9"
 services:
-  iptables:
+
+  iptables_1:
     image: "local/firewall"
     cap_add:
       - NET_ADMIN
     networks:
       firewall_coll_net:
         ipv4_address: 10.6.6.6
+
+  iptables_2:
+    image: "local/firewall"
+    cap_add:
+      - NET_ADMIN
+    networks:
+      firewall_coll_net:
+        ipv4_address: 10.6.6.7
 
 networks:
 

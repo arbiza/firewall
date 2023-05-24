@@ -9,7 +9,7 @@
         ip_version: "{{ item.0 }}"
       loop: "{{ ip | product(['INPUT', 'OUTPUT', 'FORWARD']) | list }}"
 
-    - name: FLUSH all rules
+    - name: FLUSH all rules in standard chain {{item.1}}
       ansible.builtin.iptables:
         chain: "{{ item.1 }}"
         flush: true
@@ -21,6 +21,25 @@
       changed_when: false
       register: output_ipv4
 
+    - name: Get all ipv6 rules for then filter the user-defined the chains
+      ansible.builtin.command: ip6tables -S
+      changed_when: false
+      register: output_ipv6
+
+    - name: FLUSH all rules in non-standard ipv4 chains
+      ansible.builtin.iptables:
+        chain: "{{ item }}"
+        flush: true
+        ip_version: ipv4
+      loop: "{{ output_ipv4.stdout_lines | arbiza.firewall.extra_chains }}"
+
+    - name: FLUSH all rules in non-standard ipv6 chains
+      ansible.builtin.iptables:
+        chain: "{{ item }}"
+        flush: true
+        ip_version: ipv6
+      loop: "{{ output_ipv6.stdout_lines | arbiza.firewall.extra_chains }}"
+
     - name: Delete non-standard ipv4 chains
       ansible.builtin.iptables:
         chain: "{{ item }}"
@@ -28,11 +47,6 @@
         chain_management: true
         ip_version: ipv4
       loop: "{{ output_ipv4.stdout_lines | arbiza.firewall.extra_chains }}"
-
-    - name: Get all ipv6 rules for then filter the user-defined the chains
-      ansible.builtin.command: ip6tables -S
-      changed_when: false
-      register: output_ipv6
 
     - name: Delete non-standard ipv6 chains
       ansible.builtin.iptables:
@@ -114,6 +128,12 @@
     - name: Create OUTPUT rules
       ansible.builtin.include_tasks: output.yml
       loop: "{{ output }}"
+
+    - name: PORT KNOCKING
+      ansible.builtin.include_tasks: port_knocking.yml
+      loop: "{{ ['iptables', 'ip6tables'] | product(port_knocking) | list }}"
+      when: port_knocking is defined
+      tags: [port_knocking]
 
     - name: Set policy to DROP
       ansible.builtin.iptables:

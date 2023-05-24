@@ -1,0 +1,38 @@
+---
+- name: Port Knocking
+  tags: [port_knocking]
+  block:
+    - name: Port Knocking  -  {{item.0}} - Create the STATE 2 and 3 chains
+      ansible.builtin.shell: |
+        "{{ item.0 }}" -N STATE2
+        "{{ item.0 }}" -N STATE3
+      register: state_chains_output
+      failed_when:
+        - state_chains_output.stderr != ''
+        - "'Chain already exists' not in state_chains_output.stderr"
+
+    - name: Port Knocking  -  {{item.0}} - 6-stage rules
+      ansible.builtin.shell: |
+        # 3rd stage: Process packets from the connection marked as 'KNOCK1'; connection is marked as 'KNOCK2'
+        "{{item.0}}" -A STATE2 -m recent --name KNOCK1 --remove
+        "{{item.0}}" -A STATE2 -m recent --name KNOCK2 --set
+        "{{item.0}}" -A STATE2 -j LOG --log-prefix "PORT KNOCKING - STATE 2: "
+
+        # 5th: Process packets from the connection marked as 'KNOCK2'; connection is marked as 'KNOCK3'
+        "{{item.0}}" -A STATE3 -m recent --name KNOCK2 --remove
+        "{{item.0}}" -A STATE3 -m recent --name KNOCK3 --set
+        "{{item.0}}" -A STATE3 -j LOG --log-prefix "PORT KNOCKING - STATE 3: "
+
+
+        # 1st: When the first port is knocked the connection is marked as 'KNOCK1'
+        "{{item.0}}" -A INPUT -p tcp --dport "{{ item.1.ports[0] }}" -m recent --set --name KNOCK1
+
+        # 2nd: Connection marked as 'KNOCK1' knocking the second port is redirected to the 'STATE2' chain.
+        "{{item.0}}" -A INPUT -p tcp --dport "{{ item.1.ports[1] }}" -m recent --rcheck --seconds 30 --name KNOCK1 -j STATE2
+
+        # 4th: Connection marked as 'KNOCK2' knocking the third port is redirected to the 'STATE3' chain.
+        "{{item.0}}" -A INPUT -p tcp --dport "{{ item.1.ports[2] }}" -m recent --rcheck --seconds 30 --name KNOCK2 -j STATE3
+
+        # 6th and final: SSH connection allowed for 5 minutes to the connection marked as 'KNOCK3'
+        "{{item.0}}" -A INPUT -p tcp --dport "{{ item.1.open }}" -m recent --rcheck --seconds 300 --name KNOCK3 -j ACCEPT
+      register: port_knocking_output

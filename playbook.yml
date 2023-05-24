@@ -1,37 +1,43 @@
 ---
 
-- name: Playbook of arbiza.firewall
-  hosts: "{{ target }}"
-  become: true
+- name: Port Knocking
+  hosts: localhost
 
   tasks:
-    - ansible.builtin.import_role:
-        name: arbiza.firewall.iptables
+    - name: Knock, knock, knock
+      arbiza.firewall.knock:
+        knock_at:
+          - host: "{{ hostvars['container_1'].ansible_host }}"
+            ports: "{{ hostvars['container_1'].port_knocking[0].ports }}"
+          - host: "{{ hostvars['container_2'].ansible_host }}"
+            ports: "{{ hostvars['container_2'].port_knocking[0].ports }}"
+      delegate_to: localhost
+      become: false
+      register: knock_output
+      tags: knock
+    
+    - debug:
+        var: knock_output
+      tags: knock
+
+
+- name: Playbook of arbiza.firewall
+  hosts: [container_1 container_2]
+  become: true
+
+  roles:
+    - role: arbiza.firewall.iptables
       vars:
         input:
-          - source: any
-            port: https
-          - source: any
-            port: https
+          - ports: https
+            protocol: tcp
+          - ports: http
+            protocol: tcp
+          - ports: ssh
+            protocol: tcp
         output:
-          - destination: any
-            port: https
-        port_knocking:
-          target: ssh
-          knock:
-            - 26896 
-            - 4099 
-            - 63793
-
-
-    - name: Blue test
-      tags: [blue, test]
-      block:
-
-        - name: Set var vlans
-          ansible.builtin.set_fact:
-            my_color_choice: 'blue'
-
-        - name: Test blue
-          ansible.builtin.assert:
-            that: my_color_choice is arbiza.firewall.blue
+          - ports: https
+            protocol: tcp
+          - ports: http
+            protocol: tcp
+        port_knocking: "{{ knocking_list }}"
