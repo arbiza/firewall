@@ -1,8 +1,10 @@
 ---
-loopback: "lo"
 in_out_chains:
   - INPUT
   - OUTPUT
+
 ip:
   - ipv4
   - ipv6
+
+loopback: "lo"

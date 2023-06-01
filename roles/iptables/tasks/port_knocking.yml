@@ -33,6 +33,7 @@
         # 4th: Connection marked as 'KNOCK2' knocking the third port is redirected to the 'STATE3' chain.
         "{{item.0}}" -A INPUT -p tcp --dport "{{ item.1.ports[2] }}" -m recent --rcheck --seconds 30 --name KNOCK2 -j STATE3
 
-        # 6th and final: SSH connection allowed for 5 minutes to the connection marked as 'KNOCK3'
-        "{{item.0}}" -A INPUT -p tcp --dport "{{ item.1.open }}" -m recent --rcheck --seconds 300 --name KNOCK3 -j ACCEPT
+        # 6th and final: SSH connection allowed to the connection marked as 'KNOCK3' for the number of
+        # seconds in 'duration' variable (default is 60s)
+        "{{item.0}}" -A INPUT -p tcp --dport "{{ item.1.open }}" -m recent --rcheck --seconds "{{ item.1.duration | default(60) }}" --name KNOCK3 -j ACCEPT
       register: port_knocking_output
