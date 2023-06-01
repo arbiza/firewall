@@ -10,7 +10,7 @@ all:
     container_2:
       ansible_host: 10.6.6.7
       knocking_list:
-        - open: 2222
+        - open: 22
           ports: [26896, 4099, 63793]
         - open: 8080
           ports: [27000, 5099, 64257]

@@ -1,16 +1,20 @@
 ---
 
+# When running this playbook for the first time, run with '--skip-tags knock'
+
 - name: Port Knocking
   hosts: localhost
+  gather_facts: no
 
   tasks:
     - name: Knock, knock, knock
       arbiza.firewall.knock:
         knock_at:
           - host: "{{ hostvars['container_1'].ansible_host }}"
-            ports: "{{ hostvars['container_1'].port_knocking[0].ports }}"
+            ports: "{{ hostvars['container_1'].knocking_list[0].ports }}"
           - host: "{{ hostvars['container_2'].ansible_host }}"
-            ports: "{{ hostvars['container_2'].port_knocking[0].ports }}"
+            ports: "{{ hostvars['container_2'].knocking_list[0].ports }}"
+        timeout: 2 # can be omitted; default is 10s
       delegate_to: localhost
       become: false
       register: knock_output
@@ -32,8 +36,6 @@
           - ports: https
             protocol: tcp
           - ports: http
-            protocol: tcp
-          - ports: ssh
             protocol: tcp
         output:
           - ports: https
