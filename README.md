@@ -18,9 +18,15 @@ Apart from the above, it blocks all other incoming and outcoming connections, ex
 
 ## Usage instructions
 
-_Please, check the [playbook.yml](playbook.yml) for an extensive example._
+### Instalation
+
+```shell
+ansible-galaxy collection install arbiza.firewall
+```
 
 ### Roles and Modules
+
+_Please, check the [playbook.yml](playbook.yml) for an extensive example._
 
 #### Role 'arbiza.firewall.iptables'
 
