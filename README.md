@@ -18,7 +18,7 @@ Apart from the above, it blocks all other incoming and outcoming connections, ex
 
 ## Usage instructions
 
-### Instalation
+### Installation
 
 ```shell
 ansible-galaxy collection install arbiza.firewall
